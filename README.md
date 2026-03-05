@@ -124,3 +124,13 @@ Todas las instrucciones de escritura incluyen una validación con `require!` que
 - **Blockchain:** [Solana](https://solana.com/)
 - **Framework:** [Anchor](https://www.anchor-lang.com/)
 - **Lenguaje:** [Rust](https://rust-lang.org/learn/)
+
+---
+
+## 👨‍💻 Autor
+
+Creado por **Yhonatan Peguero**
+
+[![GitHub](https://img.shields.io/badge/GitHub-YhonaPeguero-181717?style=flat&logo=github)](https://github.com/YhonaPeguero)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-yhonatan--peguero-0A66C2?style=flat&logo=linkedin)](https://www.linkedin.com/in/yhonatan-peguero/)
+[![Twitter](https://img.shields.io/badge/Twitter-thisnotmeeme-1DA1F2?style=flat&logo=x)](https://x.com/thisnotmeeme)
