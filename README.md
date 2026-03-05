@@ -1,60 +1,126 @@
-# Biblioteca en Solana
+# 🎌 Gestor de Animes — Solana Program (Anchor)
 
-![banner](./images/banner-biblioteca.jpg)
+Un programa on-chain construido con **Anchor Framework** sobre la red de **Solana** que permite a cada usuario gestionar su propia lista de animes de forma segura y descentralizada.
 
-CRUD básico de un Solana Program desarrollado con Rust y Anchor desde el Solana Playground. 
+---
 
-Puedes comenzar dándole Fork a este repositorio (abajo te explicamos como 👇), **hemos preparado un entorno de codespaces listo para que no tengas que instalar nada**, solo déjate llevar por la fluidez de los ejercicios y temas desarrollados especialmente para ti. 
+## 🧠 ¿Cómo funciona?
 
-Asegúrate de clonar este repositorio a tu cuenta usando el botón **`Fork`**.
+Cada usuario que interactúa con el programa obtiene una **PDA (Program Derived Address)** única — una cuenta especial en la blockchain que actúa como su base de datos personal de animes. Esta cuenta es controlada exclusivamente por el programa y solo puede ser modificada por su dueño (owner).
 
-![fork](./images/fork.png)
-
-## Importando el proyecto 
-
-Ya con el repositorio en tu cuenta lo siguiente que debes hacer copiar el `enlace de tu repositorio`, lo que se puede hacer directamente desdel navegador:
-
-![repo](./images/repo.png)
-Posteriormente, lo uniremos con el siguiente enlace en nuestro navegador de preferencia:
-
-```url
-https://beta.solpg.io/
+```
+Wallet del usuario + Program ID + "gestor_animes" = PDA única por usuario
 ```
 
-Lo que nos dará algo parecido a:
+---
 
-![url](./images/url.png)
+## 📦 Estructura de datos
 
-Al pulsar enter seremos enviados al `Solana Playground` con nuestro proyecto abierto:
+### `GestorAnimes` *(cuenta PDA)*
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `owner` | `Pubkey` | Wallet address del dueño |
+| `nombre` | `String` | Nombre del gestor (máx. 60 chars) |
+| `animes` | `Vec<Anime>` | Lista de animes (máx. 10) |
 
-![pg](./images/pg.png)
+### `Anime` *(struct interno)*
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `titulo` | `String` | Título del anime (máx. 100 chars) |
+| `episodios` | `u16` | Número total de episodios |
+| `imagen` | `String` | URL de la portada (máx. 200 chars) |
+| `enlace` | `String` | URL de visualización (máx. 200 chars) |
+| `favorito` | `bool` | Marcado como favorito ⭐ o no |
 
-Para guardarlo solo damos clic en el boton `import` y asignamos un nombre:
+---
 
-![import](./images/import.png)
+## ⚙️ Instrucciones
 
-## Preparacion del entorno
+### 1️⃣ `crear_gestor(nombre)`
+Crea la cuenta PDA del usuario en la blockchain. **Debe llamarse primero**, antes de cualquier otra instrucción.
 
-Primero conectaremos el entorno con la devnet, lo que tambien procederá a la creación de una wallet. Para eso daremos clic en donde dice **Not Conected**:
+```
+nombre: "Mi Colección Favorita"
+```
 
-![playground1](./images/playground1.png)
+---
 
-Saldrá la siguiente ventana donde daremos en el botón **Continue**:
+### 2️⃣ `agregar_anime(titulo, episodios, imagen, enlace)`
+Agrega un anime a la lista. Solo el owner puede ejecutar esta instrucción.
 
-![wallet](./images/wallet.png)
+```
+titulo:    "Mato Seihei no Slave"
+episodios: 12
+imagen:    "https://ejemplo.com/imagen.jpg"
+enlace:    "https://crunchyroll.com/mato-seihei"
+```
 
-Como resultado se mostrará la siguiente información:
+---
 
-![status](./images/status.png)
+### 3️⃣ `eliminar_anime(titulo)`
+Elimina un anime buscándolo por título. Error si no existe.
 
-* En verde: el estado de la conexión y el entorno al que se encuentra conectado
+```
+titulo: "Mato Seihei no Slave"
+```
 
-* En amarillo: la la dirección de la wallet conectada
+---
 
-* En azul: la cantidad de tokens en la wallet
+### 4️⃣ `ver_animes()`
+Imprime en el log de la transacción la lista completa de animes guardados. No recibe parámetros.
 
-> ℹ️ ¿Quieres ver el ejemplo de un "Hola Mundo" en Solana?. Da clic aquí: 👉 [Ver Ejemplo](https://github.com/WayLearnLatam/Solana-starter-kit/tree/1fc6349ba63375a3fe223d8d56911bc64765459b/build-deploy)
+---
 
-> ℹ️ ¿Cuentas con una Wallet de [Phantom](https://phantom.com/) que deseas importar?, Da clic aquí para ver como hacerlo: 
+### 5️⃣ `alternar_favorito(titulo)`
+Cambia el estado `favorito` de un anime. Si era `false` → `true` ⭐, y viceversa.
 
-👉 [Como Importar una Wallet](https://github.com/WayLearnLatam/Solana-starter-kit/tree/1fc6349ba63375a3fe223d8d56911bc64765459b/import-key-a-playground)
+```
+titulo: "Fate/Strange Fake"
+```
+
+---
+
+### 6️⃣ `actualizar_enlaces(titulo, nuevo_enlace, nueva_imagen)`
+Actualiza la URL de visualización y/o la imagen de portada de un anime existente.
+
+```
+titulo:       "Dead Account"
+nuevo_enlace: "https://nuevo-enlace.com"
+nueva_imagen: "https://nueva-imagen.com/portada.jpg"
+```
+
+---
+
+## 🔐 Seguridad
+
+Todas las instrucciones de escritura incluyen una validación con `require!` que verifica que **quien firma la transacción sea el mismo owner que creó el gestor**. Si no coincide, la transacción falla con el error `NoEresElOwner`.
+
+---
+
+## ❌ Códigos de Error
+
+| Error | Descripción |
+|-------|-------------|
+| `NoEresElOwner` | Quien llama la instrucción no es el dueño del gestor |
+| `AnimeNoExiste` | El título buscado no existe en la lista |
+
+---
+
+## 🚀 Flujo de uso recomendado
+
+```
+1. crear_gestor()      → Inicializa tu PDA en la blockchain
+2. agregar_anime()     → Agrega tus animes (hasta 10)
+3. ver_animes()        → Verifica el contenido en el log
+4. alternar_favorito() → Marca tus favoritos ⭐
+5. actualizar_enlaces()→ Corrige URLs si es necesario
+6. eliminar_anime()    → Limpia tu lista cuando quieras
+```
+
+---
+
+## 🛠️ Stack
+
+- **Blockchain:** [Solana](https://solana.com/)
+- **Framework:** [Anchor](https://www.anchor-lang.com/)
+- **Lenguaje:** [Rust](https://rust-lang.org/learn/)

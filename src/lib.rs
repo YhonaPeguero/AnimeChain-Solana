@@ -1,217 +1,344 @@
 use anchor_lang::prelude::*;
-// ID del Solana Program, este espacio se llena automaticamente al haver el "build"
-declare_id!("");
+// ID del programa en Solana. Se llena automáticamente al ejecutar "anchor build"
+declare_id!("8gf8aXyegsBcfci44GSnjRjz8krg4w56PrssVvesh6FP");
 
-#[program] // Macro que convierte codigo de Rust a Solana. Apartir de aqui empieza tu codigo!
-pub mod biblioteca {
-    use super::*; // Importa todas los structs y enums definidos fuera del modulo
+#[program] // Macro que convierte el código Rust a instrucciones entendibles por Solana
+pub mod gestor_animes {
+    use super::*; // Importa todos los structs y enums definidos fuera de este módulo
 
-    //////////////////////////// Instruccion: Crear Biblioteca /////////////////////////////////////
+    //////////////////////////// Instrucción: Crear Gestor /////////////////////////////////////
     /*
-    Permite la creacion de una PDA (Program Derived Adress), un tipo especial de cuenta en solana que permite prescindir 
-    del uso de llaves privadas para la firma de transacciones. 
+    Crea una PDA (Program Derived Address) — una cuenta especial en Solana que no necesita
+    llave privada para firmar transacciones. Es como una "caja fuerte" que el programa controla.
 
-    Esta cuenta contendra el objeto (struct) de tipo Biblioteca donde podremos almacenar los Libros. 
-    La creacion de la PDA depende de 3 cosas:
-        * Wallet address 
-        * Program ID 
-        * string representativo, regularmente relacionado con el nombre del proyecto
-    
-    La explicacion de esto continua en el struct NuevaBiblioteca
+    Dentro de esta PDA se guardará el struct GestorAnimes, que contendrá la lista de animes.
 
-    Parametros de entrada:
-        * nombre -> nombre de la biblioteca -> tipo string
-     */
-    pub fn crear_biblioteca(context: Context<NuevaBiblioteca>, nombre: String) -> Result<()> {
-        // "Context" siempre suele ir como primer parametro, ya que permite acceder al objeto o cuenta con el que queremos interactuar
-        // Dentro del context va al tipo de objeto o cuenta con el que deseamos interactuar. 
-        let owner_id = context.accounts.owner.key(); // Accedemos al wallet address del caller 
-        msg!("Owner id: {}", owner_id); // Print de verificacion
+    La PDA se genera de forma única a partir de:
+        * La dirección del wallet del usuario (owner)
+        * El ID del programa
+        * Un string fijo: "gestor_animes"
 
-        let libros: Vec<Libro> = Vec::new(); // Crea un vector vacio 
+    Esto garantiza que cada usuario tenga SU PROPIO gestor de animes único.
 
-        // Creamos un Struct de tipo biblioteca y lo guardamos directamente 
-        context.accounts.biblioteca.set_inner(Biblioteca { 
-            owner: owner_id,
-            nombre,
-            libros,
+    Parámetros de entrada:
+        * nombre -> Nombre del gestor (ej: "Mi Colección Favorita") -> String
+    */
+    pub fn crear_gestor(context: Context<NuevoGestor>, nombre: String) -> Result<()> {
+        // Obtenemos la dirección pública (wallet address) de quien llama la instrucción
+        let owner_id = context.accounts.owner.key();
+        msg!("Gestor creado por: {}", owner_id); // Log de verificación en la transacción
+
+        // Creamos un vector vacío donde se irán guardando los animes
+        let animes: Vec<Anime> = Vec::new();
+
+        // Inicializamos el struct GestorAnimes y lo guardamos en la cuenta PDA
+        context.accounts.gestor.set_inner(GestorAnimes {
+            owner: owner_id, // El dueño del gestor
+            nombre,           // El nombre del gestor
+            animes,           // Lista de animes (vacía al inicio)
         });
-        Ok(()) // Representa una transaccion exitosa 
+
+        Ok(()) // Transacción exitosa ✅
     }
 
-    //////////////////////////// Instruccion: Agregar Libro /////////////////////////////////////
+    //////////////////////////// Instrucción: Agregar Anime /////////////////////////////////////
     /*
-    Agrega un libro al vector de libros ontenido en el struct Biblioteca. 
-    En este caso el contexto empleado es el struct NuevoLibro. Mientras que NuevaBiblioteca permite crear 
-    Instancias de una Biblioteca. NuevoLibro permite crear y modificar los valores relacionados a cualquier
-    struct de tipo Libro.
+    Agrega un nuevo anime al vector de animes dentro del GestorAnimes.
 
-    Parametros de entrada:
-        * nombre -> nombre del libro -> string
-        * paginas -> numero de paginas del libro -> u16
-     */ 
-    pub fn agregar_libro(context: Context<NuevoLibro>, nombre: String, paginas: u16) -> Result<()> {
-        require!( // Medida de seguridad para identificar que SOLO el owner de la biblioteca sea el que hace cambios en ella
-            context.accounts.biblioteca.owner == context.accounts.owner.key(), // Condicion, true -> continua, false -> error
-            Errores::NoEresElOwner // Codigo de error, ver enum Errores
-        ); 
+    El contexto utilizado es ModificarAnime, que da acceso tanto al owner como al gestor.
+    Solo el dueño del gestor puede agregar animes (verificación con require!).
 
-        let libro = Libro { // Creacion de un struct tipo Libro
-            nombre,
-            paginas,
-            disponible: true,
+    Parámetros de entrada:
+        * titulo   -> Nombre del anime (ej: "Naruto") -> String
+        * episodios -> Número total de episodios -> u16 (número entre 0 y 65,535)
+        * imagen   -> URL de la imagen/portada del anime -> String
+        * enlace   -> URL donde se puede ver el anime -> String
+    */
+    pub fn agregar_anime(
+        context: Context<ModificarAnime>,
+        titulo: String,
+        episodios: u16,
+        imagen: String,
+        enlace: String,
+    ) -> Result<()> {
+        // 🔐 Seguridad: verificamos que quien llama sea el dueño del gestor
+        // Si no lo es, la transacción falla con el error NoEresElOwner
+        require!(
+            context.accounts.gestor.owner == context.accounts.owner.key(),
+            Errores::NoEresElOwner
+        );
+
+        // Construimos el struct Anime con los datos recibidos
+        let anime = Anime {
+            titulo,
+            episodios,
+            imagen,
+            enlace,
+            favorito: false, // Por defecto, el anime no está marcado como favorito
         };
 
-        context.accounts.biblioteca.libros.push(libro); // Agrega el Libro al vector de libros de Biblioteca
+        // Añadimos el anime al vector dentro del gestor
+        context.accounts.gestor.animes.push(anime);
+        msg!("Anime agregado exitosamente!");
 
-        Ok(()) // Transaccion exitosa
+        Ok(()) // Transacción exitosa ✅
     }
 
-    //////////////////////////// Instruccion: Eliminar Libro /////////////////////////////////////
+    //////////////////////////// Instrucción: Eliminar Anime /////////////////////////////////////
     /*
-    Elimina un libro apartir de su nombre. Error si libro no existe, Error si vector vacio. 
+    Busca un anime por su título y lo elimina del vector.
+    Devuelve error si el anime no existe o si el vector está vacío.
 
-    Parametros de entrada:
-        * nombre -> Nombre del libro -> string
-     */
-    pub fn eliminar_libro(context: Context<NuevoLibro>, nombre: String) -> Result<()> {
-        require!( // Medida de seguridad
-            context.accounts.biblioteca.owner == context.accounts.owner.key(),
+    Solo el dueño del gestor puede eliminar animes.
+
+    Parámetros de entrada:
+        * titulo -> Título del anime a eliminar -> String
+    */
+    pub fn eliminar_anime(context: Context<ModificarAnime>, titulo: String) -> Result<()> {
+        // 🔐 Verificación de identidad del owner
+        require!(
+            context.accounts.gestor.owner == context.accounts.owner.key(),
             Errores::NoEresElOwner
         );
 
-        let libros = &mut context.accounts.biblioteca.libros; // Referencia mutable al vector de libros
+        // Obtenemos una referencia mutable al vector de animes para poder modificarlo
+        let animes = &mut context.accounts.gestor.animes;
 
-        for i in 0..libros.len() { // Se itera mediante el indice todo el contenido del vector en busca del libro a eliminar
-            if libros[i].nombre == nombre { // Si lo encuentra prodece a borrarlo mediante el metodo remove
-                libros.remove(i);
-                msg!("Libro {} eliminado!", nombre); // Mensaje de borrado exitoso
-                return Ok(()); // Transaccion exitosa
+        // Recorremos el vector buscando el anime por su título
+        for i in 0..animes.len() {
+            if animes[i].titulo == titulo {
+                animes.remove(i); // Eliminamos el anime del vector usando su índice
+                msg!("Anime '{}' eliminado correctamente!", titulo);
+                return Ok(()); // Transacción exitosa ✅
             }
         }
-        Err(Errores::LibroNoExiste.into()) // Transaccion fallida, nunca encontro el libro
+
+        // Si llegamos aquí, el anime no fue encontrado
+        Err(Errores::AnimeNoExiste.into())
     }
 
-    //////////////////////////// Instruccion: Ver Libros /////////////////////////////////////
+    //////////////////////////// Instrucción: Ver Animes /////////////////////////////////////
     /*
-    Muestra en el log de la transaccion el contenido completo del vector de libros de la Biblioteca
+    Imprime en el log de la transacción la lista completa de animes guardados.
+    Útil para depuración y verificación desde el cliente.
 
-    Parametros de entrada:
+    Solo el dueño puede consultar su gestor.
+
+    Parámetros de entrada:
         Ninguno
-     */
-    pub fn ver_libros(context: Context<NuevoLibro>) -> Result<()> {
-        require!( // Medida de seguridad 
-            context.accounts.biblioteca.owner == context.accounts.owner.key(),
+    */
+    pub fn ver_animes(context: Context<ModificarAnime>) -> Result<()> {
+        // 🔐 Verificación de identidad del owner
+        require!(
+            context.accounts.gestor.owner == context.accounts.owner.key(),
             Errores::NoEresElOwner
         );
 
-        // :#? requiere que NuevoLibro tenga atributo Debug. Permite la visualizacion completa del vector en el log
-        msg!("La lista de libros actualmente es: {:#?}", context.accounts.biblioteca.libros); // Print en log
-        Ok(()) // Transaccion exitosa 
+        // {:#?} muestra el contenido completo del vector de forma legible en el log
+        // Requiere que el struct Anime tenga el atributo #[derive(Debug)]
+        msg!(
+            "Lista completa de animes: {:#?}",
+            context.accounts.gestor.animes
+        );
+
+        Ok(()) // Transacción exitosa ✅
     }
 
-    
-    //////////////////////////// Instruccion: Alternar Estado /////////////////////////////////////
-    /* 
-    Cambia el estado de disponible de false a true o de true a false.
+    //////////////////////////// Instrucción: Alternar Favorito /////////////////////////////////////
+    /*
+    Cambia el estado del campo "favorito" de un anime:
+        - Si era false → pasa a true  (marcado como favorito ⭐)
+        - Si era true  → pasa a false (quitado de favoritos)
 
-    Parametros de entrada:
-        * nombre -> Nombre del libro -> string
-     */
-    pub fn alternar_estado(context: Context<NuevoLibro>, nombre: String) -> Result<()> {
-        require!( // Medida de seguridad
-            context.accounts.biblioteca.owner == context.accounts.owner.key(),
+    Solo el dueño puede marcar/desmarcar favoritos.
+
+    Parámetros de entrada:
+        * titulo -> Título del anime cuyo estado se quiere alternar -> String
+    */
+    pub fn alternar_favorito(context: Context<ModificarAnime>, titulo: String) -> Result<()> {
+        // 🔐 Verificación de identidad del owner
+        require!(
+            context.accounts.gestor.owner == context.accounts.owner.key(),
             Errores::NoEresElOwner
         );
 
-        let libros = &mut context.accounts.biblioteca.libros; // Referencia mutable al vector de libros
-        for i in 0..libros.len() { // Se itera mediante el indice el vector de libros
-            let estado = libros[i].disponible;  // Se almacena el estado del vector actual
+        // Referencia mutable al vector de animes
+        let animes = &mut context.accounts.gestor.animes;
 
-            if libros[i].nombre == nombre { // Si ecuentra el nombre del libro procede a cambiar el valor del estado 
-                let nuevo_estado = !estado;
-                libros[i].disponible = nuevo_estado;
-                msg!("El libro: {} ahora tiene un valor de disponibilidad: {}", nombre, nuevo_estado); // log print de la nueva disponibilidad
-                return Ok(()); // Transaccion exitosa
+        // Buscamos el anime por título y alternamos su estado "favorito"
+        for i in 0..animes.len() {
+            if animes[i].titulo == titulo {
+                let nuevo_estado = !animes[i].favorito; // Invertimos el valor booleano
+                animes[i].favorito = nuevo_estado;
+                msg!(
+                    "El anime '{}' ahora tiene favorito = {}",
+                    titulo,
+                    nuevo_estado
+                );
+                return Ok(()); // Transacción exitosa ✅
             }
         }
 
-        Err(Errores::LibroNoExiste.into()) // Transaccion fallida, libro no existe
+        // Anime no encontrado en el vector
+        Err(Errores::AnimeNoExiste.into())
     }
 
+    //////////////////////////// Instrucción: Actualizar Enlace /////////////////////////////////////
+    /*
+    Permite actualizar la URL de visualización o la imagen de portada de un anime existente.
+    Útil si el enlace cambia o si queremos corregir la imagen.
+
+    Solo el dueño puede hacer esta actualización.
+
+    Parámetros de entrada:
+        * titulo      -> Título del anime a actualizar -> String
+        * nuevo_enlace -> Nueva URL de visualización -> String
+        * nueva_imagen -> Nueva URL de imagen/portada -> String
+    */
+    pub fn actualizar_enlaces(
+        context: Context<ModificarAnime>,
+        titulo: String,
+        nuevo_enlace: String,
+        nueva_imagen: String,
+    ) -> Result<()> {
+        // 🔐 Verificación de identidad del owner
+        require!(
+            context.accounts.gestor.owner == context.accounts.owner.key(),
+            Errores::NoEresElOwner
+        );
+
+        // Referencia mutable al vector de animes
+        let animes = &mut context.accounts.gestor.animes;
+
+        // Buscamos el anime y actualizamos sus URLs
+        for i in 0..animes.len() {
+            if animes[i].titulo == titulo {
+                animes[i].enlace = nuevo_enlace.clone(); // Actualizamos el enlace de visualización
+                animes[i].imagen = nueva_imagen.clone(); // Actualizamos la imagen de portada
+                msg!("Anime '{}' actualizado con nuevos enlaces!", titulo);
+                return Ok(()); // Transacción exitosa ✅
+            }
+        }
+
+        // Anime no encontrado
+        Err(Errores::AnimeNoExiste.into())
+    }
 }
 
+//////////////////////////// Códigos de Error /////////////////////////////////////
 /*
-Codigos de error
-Todos los codigos se almacenan en un enum con la siguiente estructura:
-#[msg("MENSAJE DE ERROR")] (dentro de las comillas)
-NombreDelError, (En camel case)
+Enum con todos los posibles errores del programa.
+Cada variante lleva un mensaje descriptivo que se muestra cuando ocurre el error.
+
+Estructura:
+    #[msg("Mensaje de error visible al usuario")]
+    NombreDelError,
 */
 #[error_code]
 pub enum Errores {
-    #[msg("Error, no eres el propietario de la biblioteca que deseas modificar")]
+    #[msg("Error: no eres el propietario del gestor que deseas modificar")]
     NoEresElOwner,
-    #[msg("Error, el libro con el que deseas interactuar no existe")]
-    LibroNoExiste,
+
+    #[msg("Error: el anime que buscas no existe en tu gestor")]
+    AnimeNoExiste,
 }
 
-#[account] // Especifica que el strcut es una cuenta que se almacenara en la blockchain
-#[derive(InitSpace)] // Genera la constante INIT_SPACE y determina el espacio de almacenamiento necesario 
-pub struct Biblioteca { // Define la Biblioteca
-    owner: Pubkey, // Pubkey es un formato de llave publica de 32 bytes 
-
-    #[max_len(60)] // Cantidad maxima de caracteres del string: nombre
-    nombre: String,
-
-    #[max_len(10)] // Tamaño maximo del vector libros 
-    libros: Vec<Libro>,
-}
-
+//////////////////////////// Struct: GestorAnimes /////////////////////////////////////
 /*
-Struct interno o secundario (No es una cuenta). Se define por derive y cuenta con los siguientes atributos:
-    * AnchorSerialize -> Permite guardar el struct en la cuenta 
-    * AnchorDeserialize -> Permite leer su contenido desde la cuenta 
-    * Clone -> Para copiar su contenido o valores 
-    * InitSpace -> Calcula el tamaño necesario para ser almacenado en la blockchain
-    * PartialEq -> Para usar sus valores y compararlos con "=="
-    * Debug -> Para mostrarlo en log con ":?" o ":#?"
+Cuenta principal que se almacena en la blockchain como PDA.
+Contiene todos los datos del gestor de animes de un usuario.
+
+Atributos importantes:
+    - #[account]     → Le indica a Anchor que este struct ES una cuenta en Solana
+    - #[derive(InitSpace)] → Calcula automáticamente el espacio necesario en la blockchain
 */
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Debug)]
-pub struct Libro {
+#[account]
+#[derive(InitSpace)]
+pub struct GestorAnimes {
+    /// Dirección pública del dueño del gestor (32 bytes, formato de llave pública de Solana)
+    owner: Pubkey,
+
+    /// Nombre personalizado del gestor (máximo 60 caracteres)
     #[max_len(60)]
     nombre: String,
 
-    // Los siguientes datos no rquieren de max_len porque ya estan definidos (numero de 16 bits y false o true)
-    paginas: u16, 
-
-    disponible: bool,
+    /// Lista de animes guardados (máximo 10 animes en el gestor)
+    #[max_len(10)]
+    animes: Vec<Anime>,
 }
 
+//////////////////////////// Struct: Anime /////////////////////////////////////
+/*
+Struct secundario (NO es una cuenta, es un dato dentro de GestorAnimes).
+Representa un anime individual con todos sus campos.
 
-// Creacion de los contextos para las instrucciones (funciones)
-#[derive(Accounts)] // Especifica que este struct describe las cuentas que se requieren para determinada instruccion
-pub struct NuevaBiblioteca<'info> { // contexto de la instruccion
-    #[account(mut)] 
-    pub owner: Signer<'info>, // Se define que el owner como el que pagara la transaccion, por eso es mut, para que cambie el balance de la cuenta
+Atributos derive necesarios:
+    - AnchorSerialize   → Para poder guardar el struct en la cuenta de Solana
+    - AnchorDeserialize → Para poder leer el struct desde la cuenta de Solana
+    - Clone             → Para copiar sus valores cuando sea necesario
+    - InitSpace         → Para que Anchor calcule cuánto espacio ocupa en la blockchain
+    - PartialEq         → Para comparar structs con "=="
+    - Debug             → Para poder mostrarlo en logs con "{:?}" o "{:#?}"
+*/
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Debug)]
+pub struct Anime {
+    /// Título del anime (ej: "Attack on Titan") — máximo 100 caracteres
+    #[max_len(100)]
+    titulo: String,
 
+    /// Número total de episodios del anime (u16 = número entre 0 y 65,535)
+    episodios: u16,
+
+    /// URL de la imagen o portada del anime (ej: "https://img.example.com/aot.jpg") — máximo 200 caracteres
+    #[max_len(200)]
+    imagen: String,
+
+    /// URL donde se puede ver el anime (ej: "https://crunchyroll.com/aot") — máximo 200 caracteres
+    #[max_len(200)]
+    enlace: String,
+
+    /// Indica si el anime está marcado como favorito (true = favorito ⭐, false = normal)
+    favorito: bool,
+}
+
+//////////////////////////// Contexto: NuevoGestor /////////////////////////////////////
+/*
+Define las cuentas necesarias para la instrucción "crear_gestor".
+Anchor valida automáticamente que estas cuentas existan y sean correctas.
+*/
+#[derive(Accounts)]
+pub struct NuevoGestor<'info> {
+    /// El owner es quien firma y paga la transacción (mut porque su balance de SOL cambia)
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    /// La PDA que se creará para almacenar el GestorAnimes
     #[account(
-        init, // Inidica que al llamar la instruccuion se creara una cuenta
-        // puede ser remplazado por "init_if_needed" para que solo se cree una vez por caller
-        payer = owner, // Se especifica que quien paga el llamado a la instruccion, en este caso llama la instruccion 
-        space = Biblioteca::INIT_SPACE + 8, // Se calcula el espacio requerido para almacenar el Solana Program On-Chain
-        seeds = [b"biblioteca", owner.key().as_ref()], // Se especifica que la cuenta es una PDA que depende de un string y el id del owner
-        bump // Metodo para determinar el el id de la biblioteca en base a lo anterior 
+        init,       // Indica que esta cuenta se creará nueva al llamar la instrucción
+        payer = owner, // El owner paga el costo de creación (rent en SOL)
+        space = GestorAnimes::INIT_SPACE + 8, // Espacio calculado + 8 bytes del discriminador de Anchor
+        seeds = [b"gestor_animes", owner.key().as_ref()], // Semillas únicas: string fijo + wallet del owner
+        bump        // Anchor busca automáticamente el "bump" que hace válida la PDA
     )]
-    pub biblioteca: Account<'info, Biblioteca>, // Se especifica que la cuenta creada (PDA) almacenara la biblioteca 
+    pub gestor: Account<'info, GestorAnimes>,
 
-    pub system_program: Program<'info, System>, // Programa necesario para crear la cuenta 
+    /// Programa del sistema de Solana, necesario para crear nuevas cuentas
+    pub system_program: Program<'info, System>,
 }
 
-// Contexto para la creacion y modificacion de libros 
-#[derive(Accounts)] // Especifica que este struct se requiere para todas las instrucciones relacionadas con la creacion o modificacion de Libro
-pub struct NuevoLibro<'info> {
-    pub owner: Signer<'info>, // El owner de la cuenta es quien paga la transaccion
+//////////////////////////// Contexto: ModificarAnime /////////////////////////////////////
+/*
+Define las cuentas necesarias para todas las instrucciones que leen o modifican animes:
+agregar_anime, eliminar_anime, ver_animes, alternar_favorito, actualizar_enlaces.
 
-    #[account(mut)] 
-    pub biblioteca: Account<'info, Biblioteca>, // Se marca biblioteca como mutable porque se modificara tanto el vector como los libros que contiene
+No necesita "init" porque el gestor ya existe, solo lo lee o modifica.
+*/
+#[derive(Accounts)]
+pub struct ModificarAnime<'info> {
+    /// El owner firma la transacción para verificar su identidad
+    pub owner: Signer<'info>,
+
+    /// El gestor de animes existente — se marca "mut" porque sus datos pueden cambiar
+    #[account(mut)]
+    pub gestor: Account<'info, GestorAnimes>,
 }
